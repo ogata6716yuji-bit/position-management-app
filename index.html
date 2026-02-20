@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Position">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23667eea'/%3E%3Ctext x='50' y='70' font-size='60' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EP%3C/text%3E%3C/svg%3E">
+    <title>ポジション管理システム</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 10px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .header h1 { font-size: 1.5rem; color: #4F46E5; }
+        .datetime {
+            font-size: 0.9rem;
+            color: #6B7280;
+            margin-top: 5px;
+        }
+        .btn-notify {
+            background: #4F46E5;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        @media (min-width: 768px) {
+            .grid { grid-template-columns: repeat(6, 1fr); }
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 8px;
+            border: 2px solid #E5E7EB;
+        }
+        .card.pending {
+            border-color: #EF4444;
+            background-color: #FEE2E2;
+            animation: blink 0.5s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { 
+                opacity: 1;
+                background-color: #FEE2E2;
+                border-color: #EF4444;
+            }
+            50% { 
+                opacity: 0.5;
+                background-color: #FCA5A5;
+                border-color: #DC2626;
+            }
+        }
+        .mem-header {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            margin-bottom: 6px;
+        }
+        .mem-name {
+            font-size: 12px;
+            font-weight: bold;
+            color: #4F46E5;
+            cursor: pointer;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .time-set {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            font-size: 10px;
+        }
+        .time-set select {
+            width: 34px;
+            font-size: 9px;
+            padding: 1px;
+            border-radius: 3px;
+        }
+        .pos-area {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+        .pos-box { 
+            flex: 1;
+            min-width: 50px;
+        }
+        .pos-box label {
+            display: block;
+            font-size: 12px;
+            margin-bottom: 2px;
+        }
+        .pos-box select {
+            width: 100%;
+            min-width: 50px;
+            padding: 4px 2px;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .timer-box {
+            border-radius: 4px;
+            padding: 4px;
+            border: 2px solid;
+        }
+        .timer-box.blue { background: #DBEAFE; border-color: #93C5FD; }
+        .timer-box.yellow { background: #FEF3C7; border-color: #FCD34D; }
+        .timer-box.red { background: #FEE2E2; border-color: #FCA5A5; }
+        .timer-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+        .timer-time {
+            font-size: 16px;
+            font-weight: bold;
+            font-family: monospace;
+        }
+        .btn {
+            padding: 4px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            color: white;
+            font-weight: bold;
+        }
+        .btn-green { background: #22C55E; }
+        .btn-red { background: #EF4444; }
+        .btn-row { display: flex; gap: 4px; }
+        .notifs {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+        .notif {
+            background: #22C55E;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1 id="headerTitle">📍 ポジション管理システム</h1>
+                <div class="datetime" id="datetime"></div>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="btn-notify" onclick="toggleLang()">🌐 <span id="langBtn">EN</span></button>
+                <button class="btn-notify" onclick="askNotify()"><span id="notifyBtn">🔔 通知ON</span></button>
+                <button class="btn-notify" style="background: #DC2626;" onclick="resetAll()"><span id="resetBtn">🔄 一括リセット</span></button>
+            </div>
+        </div>
+        <div class="notifs" id="notifArea"></div>
+        <div class="grid" id="mainGrid"></div>
+    </div>
+
+    <script>
+        var data = [];
+        var now = Date.now();
+        var audio = null;
+        var lang = 'ja';
+
+        var translations = {
+            ja: {
+                title: '📍 ポジション管理システム',
+                langBtn: 'EN',
+                notifyBtn: '🔔 通知ON',
+                resetBtn: '🔄 一括リセット',
+                current: '現在',
+                next: '次',
+                mins: '分',
+                confirmMove: '✓ 移動確認',
+                force: '▶移動',
+                cancel: '✕取消',
+                reset: '✕リセット',
+                noCurrentAlert: '現在が未入力です',
+                sameAlert: '現在と同じです',
+                moveScheduled: '分後に',
+                moveTo: '番へ',
+                moved: 'が',
+                movedTo: '番へ移動',
+                forcedMove: 'を強制移動',
+                moveTimeAlert: 'の移動時間です！',
+                moveNotif: '移動確認',
+                resetAllConfirm: '全メンバーを一括リセットしますか？',
+                resetAllDone: '全メンバーをリセットしました',
+                namePrompt: '名前:'
+            },
+            en: {
+                title: '📍 Position Management',
+                langBtn: '日本語',
+                notifyBtn: '🔔 Notify',
+                resetBtn: '🔄 Reset All',
+                current: 'Current',
+                next: 'Next',
+                mins: 'min',
+                confirmMove: '✓ Confirm',
+                force: '▶Move',
+                cancel: '✕Cancel',
+                reset: '✕Reset',
+                noCurrentAlert: 'Current position not set',
+                sameAlert: 'Same as current',
+                moveScheduled: ' min to pos ',
+                moveTo: '',
+                moved: ' moved to pos ',
+                movedTo: '',
+                forcedMove: ' forced move',
+                moveTimeAlert: ' time to move!',
+                moveNotif: 'Move Confirmation',
+                resetAllConfirm: 'Reset all members?',
+                resetAllDone: 'All members reset',
+                namePrompt: 'Name:'
+            }
+        };
+
+        function t(key) {
+            return translations[lang][key];
+        }
+
+        function toggleLang() {
+            lang = lang === 'ja' ? 'en' : 'ja';
+            localStorage.setItem('appLang', lang);
+            updateUI();
+            draw();
+        }
+
+        function updateUI() {
+            document.getElementById('headerTitle').textContent = t('title');
+            document.getElementById('langBtn').textContent = t('langBtn');
+            document.getElementById('notifyBtn').textContent = t('notifyBtn');
+            document.getElementById('resetBtn').textContent = t('resetBtn');
+            updateDateTime();
+        }
+
+        function updateDateTime() {
+            var d = new Date();
+            var year = d.getFullYear();
+            var month = ('0' + (d.getMonth() + 1)).slice(-2);
+            var day = ('0' + d.getDate()).slice(-2);
+            var hour = ('0' + d.getHours()).slice(-2);
+            var min = ('0' + d.getMinutes()).slice(-2);
+            var sec = ('0' + d.getSeconds()).slice(-2);
+            var dateStr = year + '/' + month + '/' + day + ' ' + hour + ':' + min + ':' + sec;
+            document.getElementById('datetime').textContent = dateStr;
+        }
+
+        function start() {
+            var savedLang = localStorage.getItem('appLang');
+            if (savedLang) {
+                lang = savedLang;
+            }
+            updateUI();
+            
+            var saved = localStorage.getItem('posData_v2');
+            if (saved) {
+                data = JSON.parse(saved);
+            } else {
+                for (var i = 0; i < 18; i++) {
+                    data.push({
+                        id: i,
+                        name: String.fromCharCode(65 + i),
+                        cur: null,
+                        nxt: null,
+                        mt: null,
+                        st: null,
+                        min: 15,
+                        pend: false
+                    });
+                }
+            }
+            draw();
+        }
+
+        function save() {
+            localStorage.setItem('posData_v2', JSON.stringify(data));
+        }
+
+        function msg(text) {
+            var d = document.createElement('div');
+            d.className = 'notif';
+            d.textContent = text;
+            document.getElementById('notifArea').appendChild(d);
+            setTimeout(function() { d.remove(); }, 5000);
+        }
+
+        function beep() {
+            try {
+                if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+                var o = audio.createOscillator();
+                var g = audio.createGain();
+                o.connect(g);
+                g.connect(audio.destination);
+                o.frequency.value = 800;
+                g.gain.setValueAtTime(0.3, audio.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.01, audio.currentTime + 0.5);
+                o.start();
+                o.stop(audio.currentTime + 0.5);
+            } catch(e) {}
+        }
+
+        function askNotify() {
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        }
+
+        function resetAll() {
+            if (confirm(t('resetAllConfirm'))) {
+                for (var i = 0; i < data.length; i++) {
+                    data[i].cur = null;
+                    data[i].nxt = null;
+                    data[i].mt = null;
+                    data[i].st = null;
+                    data[i].pend = false;
+                }
+                save();
+                draw();
+                msg(t('resetAllDone'));
+            }
+        }
+
+        function fmt(t) {
+            if (!t) return '0:00';
+            var e = now - t;
+            var m = Math.floor(e / 60000);
+            var s = Math.floor((e % 60000) / 1000);
+            return m + ':' + (s < 10 ? '0' : '') + s;
+        }
+
+        function editName(id) {
+            var m = data[id];
+            var n = prompt(t('namePrompt'), m.name);
+            if (n && n.trim()) {
+                m.name = n.trim();
+                save();
+                draw();
+            }
+        }
+
+        function editMin(id, val) {
+            var m = data[id];
+            m.min = parseInt(val);
+            if (m.st && m.mt) {
+                m.mt = m.st + (m.min * 60000);
+            }
+            save();
+            updateTimers();
+        }
+
+        function setCur(id, val) {
+            var m = data[id];
+            m.cur = val ? parseInt(val) : null;
+            m.nxt = null;
+            m.mt = null;
+            m.st = val ? Date.now() : null;
+            m.pend = false;
+            save();
+            draw();
+        }
+
+        function setNxt(id, val) {
+            var m = data[id];
+            if (!val) return;
+            
+            if (!m.cur) {
+                alert(t('noCurrentAlert'));
+                draw();
+                return;
+            }
+            var p = parseInt(val);
+            if (m.cur === p) {
+                alert(t('sameAlert'));
+                m.nxt = null;
+                save();
+                draw();
+                return;
+            }
+            var t2 = Date.now();
+            m.nxt = p;
+            m.mt = t2 + (m.min * 60000);
+            m.st = t2;
+            m.pend = false;
+            save();
+            msg(m.name + ': ' + m.min + t('moveScheduled') + p + t('moveTo'));
+            draw();
+        }
+
+        function conf(id) {
+            var m = data[id];
+            var confirmMsg = lang === 'ja' ? 
+                m.name + ' を ' + m.nxt + '番へ移動しますか？' : 
+                'Move ' + m.name + ' to position ' + m.nxt + '?';
+            
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+            
+            m.cur = m.nxt;
+            m.nxt = null;
+            m.mt = null;
+            m.st = Date.now();
+            m.pend = false;
+            save();
+            msg(m.name + t('moved') + m.cur + t('movedTo'));
+            draw();
+        }
+
+        function force(id) {
+            var m = data[id];
+            var confirmMsg = lang === 'ja' ? 
+                m.name + ' を ' + m.nxt + '番へ強制移動しますか？' : 
+                'Force move ' + m.name + ' to position ' + m.nxt + '?';
+            
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+            
+            m.cur = m.nxt;
+            m.nxt = null;
+            m.mt = null;
+            m.st = Date.now();
+            m.pend = false;
+            save();
+            msg(m.name + t('forcedMove'));
+            draw();
+        }
+
+        function clr(id) {
+            var m = data[id];
+            var confirmMsg = lang === 'ja' ? 
+                m.name + ' のポジション情報をリセットしますか？' : 
+                'Reset ' + m.name + ' position data?';
+            
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+            
+            m.cur = null;
+            m.nxt = null;
+            m.mt = null;
+            m.st = null;
+            m.pend = false;
+            save();
+            draw();
+        }
+
+        function updateTimers() {
+            var needsRedraw = false;
+            for (var i = 0; i < data.length; i++) {
+                var m = data[i];
+                if (m.st) {
+                    var elem = document.getElementById('time-' + i);
+                    if (elem) {
+                        elem.textContent = fmt(m.st);
+                    }
+                }
+                // Check if card should be pending but isn't displayed as such
+                var card = document.getElementById('card-' + i);
+                if (card && m.pend && !card.classList.contains('pending')) {
+                    needsRedraw = true;
+                }
+            }
+            // If any card needs to show pending state, redraw everything
+            if (needsRedraw) {
+                draw();
+            }
+        }
+
+        function draw() {
+            var h = '';
+            for (var i = 0; i < data.length; i++) {
+                var m = data[i];
+                h += '<div id="card-' + i + '" class="card' + (m.pend ? ' pending' : '') + '">';
+                
+                h += '<div class="mem-header">';
+                h += '<div class="mem-name" onclick="editName(' + i + ')">' + m.name + '</div>';
+                h += '<div class="time-set">⏰<select onchange="editMin(' + i + ',this.value)">';
+                var opts = [10,15,20,25,30,40,50,60];
+                for (var j = 0; j < opts.length; j++) {
+                    h += '<option value="' + opts[j] + '"' + (m.min === opts[j] ? ' selected' : '') + '>' + opts[j] + '</option>';
+                }
+                h += '</select>' + t('mins') + '</div></div>';
+                
+                h += '<div class="pos-area">';
+                h += '<div class="pos-box"><label>' + t('current') + '</label><select onchange="setCur(' + i + ',this.value)"><option value="">-</option>';
+                for (var k = 1; k <= 20; k++) {
+                    h += '<option value="' + k + '"' + (m.cur === k ? ' selected' : '') + '>' + k + '</option>';
+                }
+                h += '</select></div>';
+                
+                h += '<div class="pos-box"><label>' + t('next') + '</label><select onchange="setNxt(' + i + ',this.value)"' + (!m.cur ? ' disabled' : '') + '><option value="">-</option>';
+                for (var k = 1; k <= 20; k++) {
+                    h += '<option value="' + k + '"' + (m.nxt === k ? ' selected' : '') + '>' + k + '</option>';
+                }
+                h += '</select></div></div>';
+                
+                if (m.st) {
+                    var c = m.pend ? 'red' : (m.mt ? 'yellow' : 'blue');
+                    h += '<div class="timer-box ' + c + '">';
+                    h += '<div class="timer-row">';
+                    h += '<div style="font-size:12px;font-weight:bold">' + (m.mt ? m.cur + '→' + m.nxt : '#' + m.cur) + '</div>';
+                    h += '<div class="timer-time" id="time-' + i + '">' + fmt(m.st) + '</div>';
+                    h += '</div>';
+                    
+                    if (m.pend) {
+                        h += '<button class="btn btn-green" style="width:100%" onclick="conf(' + i + ')">' + t('confirmMove') + '</button>';
+                    } else if (m.mt) {
+                        h += '<div style="font-size:12px;margin-bottom:4px">' + m.min + t('mins');
+                        if (now >= m.mt) h += ' <span style="color:#DC2626">⏰</span>';
+                        h += '</div>';
+                        h += '<div class="btn-row">';
+                        h += '<button class="btn btn-green" style="flex:1" onclick="force(' + i + ')">' + t('force') + '</button>';
+                        h += '<button class="btn btn-red" style="flex:1" onclick="clr(' + i + ')">' + t('cancel') + '</button>';
+                        h += '</div>';
+                    } else {
+                        h += '<button class="btn btn-red" style="width:100%" onclick="clr(' + i + ')">' + t('reset') + '</button>';
+                    }
+                    
+                    h += '</div>';
+                }
+                
+                h += '</div>';
+            }
+            document.getElementById('mainGrid').innerHTML = h;
+        }
+
+        function check() {
+            var t = Date.now();
+            var changed = false;
+            for (var i = 0; i < data.length; i++) {
+                var m = data[i];
+                if (m.mt && t >= m.mt && !m.pend) {
+                    m.pend = true;
+                    changed = true;
+                    beep();
+                    msg(m.name + t('moveTimeAlert'));
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        new Notification(t('moveNotif'), { body: m.name + t('moved') + m.nxt + t('movedTo') });
+                    }
+                }
+            }
+            if (changed) {
+                save();
+                draw();
+            }
+        }
+
+        start();
+        // タイマー表示のみを更新（全体の再描画はしない）
+        setInterval(function() { 
+            now = Date.now(); 
+            updateTimers();
+            updateDateTime();
+        }, 100);
+        setInterval(check, 1000);
+
+        // Service Worker登録（PWA対応）
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('./service-worker.js')
+                    .then(function(registration) {
+                        console.log('ServiceWorker registered');
+                    })
+                    .catch(function(err) {
+                        console.log('ServiceWorker failed:', err);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
